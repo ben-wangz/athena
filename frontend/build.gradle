@@ -1,0 +1,51 @@
+buildscript {
+    repositories {
+        for (mavenRepositoryUrl in project.rootProject.ext.mavenRepositoryUrlList) {
+            maven { url(mavenRepositoryUrl) }
+        }
+    }
+}
+
+plugins {
+    id "io.github.http-builder-ng.http-plugin" version "0.1.1"
+    id "com.github.node-gradle.node" version "3.0.1"
+}
+
+node {
+    download = true
+    version = "14.17.0"
+    distBaseUrl = "https://npm.taobao.org/mirrors/node"
+}
+
+repositories.clear()
+repositories.addAll(buildscript.repositories)
+version = '0.0.1-SNAPSHOT'
+
+def imageNameWithTag = "${project.rootProject.getName()}-frontend:${project.getVersion()}"
+
+task debug() {
+    dependsOn(npm_run_serve)
+}
+
+task buildDockerImage(type: Exec) {
+    def dockerBuildDirectory = project.file("${project.buildDir}/runtime/docker")
+    doFirst {
+        dockerBuildDirectory.parentFile.mkdirs()
+        copy {
+            from project.file("docker")
+            into dockerBuildDirectory
+        }
+        copy {
+            from project.file("dist").getAbsolutePath()
+            into "${dockerBuildDirectory}/dist"
+        }
+        println("running command: ${String.join(" ", getCommandLine())}")
+    }
+    executable("docker")
+    args(
+            "build", dockerBuildDirectory.getAbsolutePath(),
+            "-f", project.file("${dockerBuildDirectory}/Dockerfile").getAbsolutePath(),
+            "-t", imageNameWithTag,
+    )
+    dependsOn(npm_run_build)
+}
